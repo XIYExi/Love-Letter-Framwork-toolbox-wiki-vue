@@ -101,7 +101,12 @@ export default defineComponent({
   setup(){
     const ebook1 = reactive({books: []});
     onMounted(() => {
-      axios.get(`/ebook/list`)
+      axios.get(`/ebook/list`, {
+        params:{
+          page:1,
+          size:10
+        }
+      })
           .then(resp => {
             const {list} = resp.data.data;
             ebook1.books = list;

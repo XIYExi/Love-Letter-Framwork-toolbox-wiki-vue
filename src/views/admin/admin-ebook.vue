@@ -14,7 +14,7 @@
             </a-button>
           </a-form-item>
           <a-form-item>
-            <a-button type="primary" @click="add()">
+            <a-button type="primary" @click="handleAdd()">
               新增
             </a-button>
           </a-form-item>
@@ -32,7 +32,7 @@
           <img v-if="cover" :src="cover" alt="avatar" />
         </template>
         <template v-slot:category="{  record }">
-          <span>{{ getCategoryName(record.category1Id) }} / {{ getCategoryName(record.category2Id) }}</span>
+          <span><!--{{ getCategoryName(record.category1Id) }} / {{ getCategoryName(record.category2Id) }}--> {{record}} </span>
         </template>
         <template v-slot:action="{  record }">
           <a-space size="small">
@@ -41,16 +41,16 @@
                 文档管理
               </a-button>
             </router-link>
-            <a-button type="primary" @click="edit(record)">
+            <a-button type="primary" @click="handleEdit(record)">
               编辑
             </a-button>
             <a-popconfirm
                 title="删除后不可恢复，确认删除?"
                 ok-text="是"
                 cancel-text="否"
-                @confirm="handleDelete(record.id)"
+                @confirm="()=>{}"
             >
-              <a-button type="danger">
+              <a-button type="danger" @click="handleDelete(record)">
                 删除
               </a-button>
             </a-popconfirm>
@@ -91,14 +91,18 @@
 <script lang="ts">
 import {defineComponent, onMounted, ref} from "vue";
 import axios from "axios";
+import { message } from 'ant-design-vue';
+import {Tool} from "@/util/tool";
 
 export default defineComponent({
   name: 'admin-ebook',
   setup(){
+    const param = ref({});
+
     const ebooks = ref();
     const pagination = ref({
       current: 1,
-      pageSize: 2,
+      pageSize: 10,
       total: 0
     });
     const loading = ref(false);
@@ -143,10 +147,15 @@ export default defineComponent({
 
       loading.value = true;
       ebooks.value = [];
-      axios.get(`/ebook/list?page=${params.page}&size=${params.size}`).then((response) => {
+      axios.get(`/ebook/list`,{
+        params: {
+          page: params.page,
+          size: params.size
+        }
+      }).then((response) => {
         loading.value = false;
         const {list} = response.data.data;
-        console.log('resp', list)
+        //console.log('resp', list)
         ebooks.value = list.list;
         //重置分页按钮
         pagination.value.current = params.page;
@@ -164,6 +173,67 @@ export default defineComponent({
       });
     };
 
+
+
+    /**
+     * 表单
+     * */
+    const categoryIds = ref();
+    const ebook = ref();
+    const modalVisible = ref(false);
+    const modalLoading = ref(false);
+
+    /**
+     * 保存
+     *  /ebook/save
+     * */
+    const handleModalOk = () => {
+      modalLoading.value = true;
+      ebook.value.category1Id = categoryIds.value[0];
+      ebook.value.category2Id = categoryIds.value[1];
+      axios.post("/ebook/save", ebook.value).then((resp) => {
+        modalLoading.value = false;
+        const {data} = resp;
+        //console.log(`code: ${data.code}`, data)
+        if (data.code === 2000) {
+          modalVisible.value = false;
+          // 重新加载列表
+          handleQuery({
+            page: pagination.value.current,
+            size: pagination.value.pageSize,
+          });
+        } else {
+          message.error(data.message);
+        }
+      });
+    };
+
+    const handleEdit = (record: any) => {
+      modalVisible.value = true;
+      ebook.value = Tool.copy(record);
+      categoryIds.value = [ebook.value.category1Id, ebook.value.category2Id]
+    };
+
+    const handleAdd = () => {
+      modalVisible.value = true;
+      ebook.value = {};
+    }
+
+    const handleDelete = (id: number) => {
+      axios.delete("/ebook/delete/" + id).then((response) => {
+        const {data} = response; // data = commonResp
+        if (data.code === 2000) {
+          // 重新加载列表
+          handleQuery({
+            page: pagination.value.current,
+            size: pagination.value.pageSize,
+          });
+        } else {
+          message.error(data.message);
+        }
+      });
+    };
+
     onMounted(() => {
       handleQuery({
         page: 1,
@@ -176,7 +246,17 @@ export default defineComponent({
       pagination,
       columns,
       loading,
-      handleTableChange
+      handleTableChange,
+      param,
+      handleQuery,
+      ebook,
+      categoryIds,
+      modalVisible,
+      modalLoading,
+      handleModalOk,
+      handleEdit,
+      handleAdd,
+      handleDelete
     }
 
   }

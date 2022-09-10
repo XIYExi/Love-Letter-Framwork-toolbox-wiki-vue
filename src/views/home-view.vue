@@ -3,53 +3,37 @@
     <a-layout-sider width="200" style="background: #fff">
       <a-menu
           mode="inline"
-          v-model:selectedKeys="selectedKeys2"
-          v-model:openKeys="openKeys"
+          @click="handleClick"
+          :openKeys="openKeys"
           :style="{ height: '100%', borderRight: 0 }"
       >
-        <a-sub-menu key="sub1">
-          <template #title>
-              <span>
-                <user-outlined />
-                subnav 1
-              </span>
+        <a-menu-item key="welcome">
+          <MailOutlined />
+          <span>欢迎</span>
+        </a-menu-item>
+        <a-sub-menu v-for="item in level1" :key="item.id" :disabled="false">
+          <template v-slot:title>
+            <span><user-outlined />{{item.name}}</span>
           </template>
-          <a-menu-item key="1">option1</a-menu-item>
-          <a-menu-item key="2">option2</a-menu-item>
-          <a-menu-item key="3">option3</a-menu-item>
-          <a-menu-item key="4">option4</a-menu-item>
+          <a-menu-item v-for="child in item.children" :key="child.id">
+            <MailOutlined /><span>{{child.name}}</span>
+          </a-menu-item>
         </a-sub-menu>
-        <a-sub-menu key="sub2">
-          <template #title>
-              <span>
-                <laptop-outlined />
-                subnav 2
-              </span>
-          </template>
-          <a-menu-item key="5">option5</a-menu-item>
-          <a-menu-item key="6">option6</a-menu-item>
-          <a-menu-item key="7">option7</a-menu-item>
-          <a-menu-item key="8">option8</a-menu-item>
-        </a-sub-menu>
-        <a-sub-menu key="sub3">
-          <template #title>
-              <span>
-                <notification-outlined />
-                subnav 3
-              </span>
-          </template>
-          <a-menu-item key="9">option9</a-menu-item>
-          <a-menu-item key="10">option10</a-menu-item>
-          <a-menu-item key="11">option11</a-menu-item>
-          <a-menu-item key="12">option12</a-menu-item>
-        </a-sub-menu>
+        <a-menu-item key="tip" :disabled="true">
+          <span>以上菜单在分类管理配置</span>
+        </a-menu-item>
       </a-menu>
     </a-layout-sider>
     <a-layout-content
         :style="{ background: '#fff', padding: '24px', margin: 0, minHeight: '280px' }"
     >
-      <a-list item-layout="vertical" size="large"
-              :pagination="pagination" :data-source="wiki"
+      <div class="welcome" v-show="isShowWelcome">
+        hello
+      </div>
+
+
+      <a-list v-show="!isShowWelcome" item-layout="vertical" size="large"
+              :pagination="pagination" :data-source="ebooks"
               :grid="{gutter:20, column:3}"
       >
         <template #footer>
@@ -80,55 +64,90 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, onMounted, reactive, toRef} from 'vue';
+import {defineComponent, onMounted, reactive, ref, toRef} from 'vue';
 import axios from "axios";
-
-const listData: Record<string, string>[] = [];
-for (let i = 0; i < 23; i++) {
-  listData.push({
-    href: 'https://www.antdv.com/',
-    title: `ant design vue part ${i}`,
-    avatar: 'https://zos.alipayobjects.com/rmsportal/ODTLcjxAfvqbxHnVXCYX.png',
-    description:
-        'Ant Design, a design language for background applications, is refined by Ant UED Team.',
-    content:
-        'We supply a series of design principles, practical patterns and high quality design resources (Sketch and Axure), to help people create their product prototypes beautifully and efficiently.',
-  });
-}
+import {Tool} from "@/util/tool";
+import {message} from "ant-design-vue";
 
 export default defineComponent({
   name: 'home-view',
   setup(){
-    const ebook1 = reactive({books: []});
-    onMounted(() => {
-      axios.get(`/ebook/list`, {
-        params:{
-          page:1,
-          size:10
+
+    const ebooks = ref();
+    const level1 =  ref();
+    let categorys: any;
+    const openKeys =  ref();
+
+    const isShowWelcome = ref(true);
+    let categoryId2 = 0;
+
+    const handleQueryCategory = () => {
+      axios.get("/category/all").then((response) => {
+        const {data} = response;
+        if (data.code === 2000) {
+          categorys = data.data.list;
+          console.log("原始数组：", categorys);
+
+          // 加载完分类后，将侧边栏全部展开
+          openKeys.value = [];
+          for (let i = 0; i < categorys.length; i++) {
+            openKeys.value.push(categorys[i].id)
+          }
+
+          level1.value = [];
+          level1.value = Tool.array2Tree(categorys, 0);
+          console.log("树形结构：", level1.value);
+        } else {
+          message.error(data.message);
         }
-      })
-          .then(resp => {
-            const {list} = resp.data.data;
-            ebook1.books = list;
-          })
-    })
+      });
+    };
+
+
+    const handleQueryEbook = () => {
+      axios.get("/ebook/list", {
+        params: {
+          page: 1,
+          size: 100,
+          categoryId2: categoryId2
+        }
+      }).then((response) => {
+        const {list} = response.data.data;
+        ebooks.value = list.list;
+      });
+    };
+
+    const handleClick = (value: any) => {
+      // console.log("menu click", value)
+      if (value.key === 'welcome') {
+        isShowWelcome.value = true;
+      } else {
+        categoryId2 = value.key;
+        isShowWelcome.value = false;
+        handleQueryEbook();
+      }
+      // isShowWelcome.value = value.key === 'welcome';
+    };
+
     const pagination = {
       onChange: (page: number) => {
         console.log(page);
       },
       pageSize: 3,
     };
-    const actions: Record<string, string>[] = [
-      { type: 'StarOutlined', text: '156' },
-      { type: 'LikeOutlined', text: '156' },
-      { type: 'MessageOutlined', text: '2' },
-    ];
+
+    onMounted(() => {
+      handleQueryCategory();
+      // handleQueryEbook();
+    });
 
     return {
-      wiki : toRef(ebook1, "books"),
+      ebooks,
       pagination,
-      actions,
-      listData
+      handleClick,
+      level1,
+      isShowWelcome,
+      openKeys
     };
   }
 });

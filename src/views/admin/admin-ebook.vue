@@ -32,7 +32,7 @@
           <img v-if="cover" :src="cover" alt="avatar" />
         </template>
         <template v-slot:category="{  record }">
-          <span><!--{{ getCategoryName(record.category1Id) }} / {{ getCategoryName(record.category2Id) }}--> {{record}} </span>
+          <span>{{ getCategoryName(record.category1Id) }} / {{ getCategoryName(record.category2Id) }}</span>
         </template>
         <template v-slot:action="{  record }">
           <a-space size="small">
@@ -154,12 +154,21 @@ export default defineComponent({
         }
       }).then((response) => {
         loading.value = false;
-        const {list} = response.data.data;
+        const {data} = response;
         //console.log('resp', list)
-        ebooks.value = list.list;
-        //重置分页按钮
-        pagination.value.current = params.page;
-        pagination.value.total = list.total;
+        if(data.code === 2000) {
+          const {list} = response.data.data;
+          ebooks.value = list.list;
+          //重置分页按钮
+          pagination.value.current = params.page;
+          pagination.value.total = list.total;
+        }
+
+        if (data.code === 5555){
+          message.error(data.message);
+        }
+
+
       });
     };
 
@@ -220,8 +229,8 @@ export default defineComponent({
     }
 
     const handleDelete = (id: number) => {
-      axios.delete("/ebook/delete/" + id).then((response) => {
-        const {data} = response; // data = commonResp
+      axios.delete("/ebook/delete/" + id).then((resp) => {
+        const {data} = resp; // data = commonResp
         if (data.code === 2000) {
           // 重新加载列表
           handleQuery({
@@ -234,14 +243,58 @@ export default defineComponent({
       });
     };
 
+
+    const level1 =  ref();
+    let categorys: any;
+    /**
+     * 查询所有分类
+     **/
+    const handleQueryCategory = () => {
+      loading.value = true;
+      axios.get("/category/all").then((response) => {
+        loading.value = false;
+        const {data} = response;
+        if (data.code === 2000) {
+          const {list} = data.data;
+          categorys = list;
+          console.log("原始数组：", categorys);
+
+          level1.value = [];
+          level1.value = Tool.array2Tree(categorys, 0);
+          console.log("树形结构：", level1.value);
+
+          // 加载完分类后，再加载电子书，否则如果分类树加载很慢，则电子书渲染会报错
+          handleQuery({
+            page: 1,
+            size: pagination.value.pageSize,
+          });
+        } else {
+          message.error(data.message);
+        }
+      });
+    };
+
+
+
+    const getCategoryName = (cid: number) => {
+      let result = "";
+      console.log('name   === > ',categorys, cid)
+      categorys.map((item: any, index: any) => {
+        // 数据类型不同，返回的是number， 但是后端【JsonSerializer】转换后传递过来的是string
+        if (Number(item.id) === cid) {
+          result = item.name;
+        }
+      });
+      return result;
+    };
+
+
     onMounted(() => {
-      handleQuery({
-        page: 1,
-        size: pagination.value.pageSize}
-      );
+      handleQueryCategory()
     });
 
     return {
+      getCategoryName,
       ebooks,
       pagination,
       columns,
@@ -256,7 +309,8 @@ export default defineComponent({
       handleModalOk,
       handleEdit,
       handleAdd,
-      handleDelete
+      handleDelete,
+      level1
     }
 
   }
